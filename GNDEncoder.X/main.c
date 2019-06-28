@@ -1,4 +1,4 @@
-/* 
+/*
  * File:   main.c
  * Author: pguz1
  *
@@ -16,177 +16,183 @@
 #include "communication.h"
 #include "variable.h"
 #include "dsPIC33FJ128MC802.h"
+#include "Parameter.h"
 /* Delay */
-#define FCY 4000000UL                  /*delayä÷êîópíËã` Forc/2*/
-#include <libpic30.h>                    /*delayä÷êîóp*/
+#define FCY 4000000UL   /* delayÈñ¢Êï∞Áî®ÂÆöÁæ© Forc/2 */
+#include <libpic30.h>   /* delayÈñ¢Êï∞Áî® */
+
+/*-----------------------------------------------
+ *
+ * Âü∫ÊùøÊØé„ÅÆË®≠ÂÆö
+ *
+-----------------------------------------------*/
+uint8_t MY_ADDRESS = 0x00; /* „Åì„ÅÆÂü∫Êùø„ÅÆ„Ç¢„Éâ„É¨„Çπ */
+
 
 /*-----------------------------------------------
  * Define
 -----------------------------------------------*/
-#define enable 1
-#define disable 0
-#define ON 1
-#define OFF 0
-
 /* ControllerProtocol */
 #define bus1 0
 
-/* for UART */
-#define data_amount 150
-
 /* debug */
 #define debug_LED1 LATBbits.LATB2
-#define debug_LED2 LATBbits.LATB3
+#define ErrorLED LATBbits.LATB3
 
-/* QEI */
-#define INIT_QEI_VALUE 0x7FFF   /* 0x7FFF : 0xFFFF / 2 */
-
-/*-----------------------------------------------
- * ç\ë¢ëÃ
------------------------------------------------*/
-typedef struct _QEI
-{
-    bool reset;
-    long count;
-    short rotate, res;
-}_QEI;
+/* ÈÄö‰ø°Áî® */
+#define UP(data) ((((int16_t)data) >> 8) & 0xFF)
+#define LOW(data) (((int16_t)data) & 0xFF)
+#define ASBL(up, low) ((int16_t)((up) << 8) | (low)) /* Assemble */
 
 /*-----------------------------------------------
- * ÉvÉçÉgÉ^ÉCÉvêÈåæ
+ * „Éó„É≠„Éà„Çø„Ç§„ÉóÂÆ£Ë®Ä
 -----------------------------------------------*/
 void Initialize();
-void __attribute__((interrupt, no_auto_psv)) _QEI1Interrupt(void);
-void __attribute__((interrupt, no_auto_psv)) _U1TXInterrupt(void);
-void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void);
-void __attribute__((interrupt, no_auto_psv)) _U1RXInterrupt(void);
-void __attribute__((interrupt, no_auto_psv)) _U2TXInterrupt(void);
+void CalcOdometry(short Rev[], short Residue[], bool Reset[]);
 void EUSART_Write(unsigned char data);
 void EUSART_TxInterrupt_Control(bool enable_or_disable);
-short QEI_Sampling(unsigned char channel, _QEI QEI);
 
 /*-----------------------------------------------
- * ÉOÉçÅ[ÉoÉãïœêî
+ * „Ç∞„É≠„Éº„Éê„É´Â§âÊï∞
 -----------------------------------------------*/
-/* ControllerProtocol */
+/* ÈÄö‰ø°„Éï„É©„Ç∞ */
 bool TxFrag = 1;
-
-/* for UART */
+bool rx_has_started = 0; /* Âèó‰ø°ÈñãÂßã„Åó„Åü„Éï„É©„Éñ */
 int status = 0;
-char display[data_amount];
-uint8_t MY_ADDRESS = 0x80;
-bool rx_has_started = 0; //éÛêMäJénÇµÇΩÉtÉâÉO
+
+short IntCnt[2] = {0, 0}; /* Ââ≤„ÇäËæº„ÅøÂõûÊï∞ */
+uint8_t Mode;
 
 int main(int argc, char** argv)
 {
-    Initialize();   /* èâä˙âª */ 
-    
-    /*-----------------------------------------------
-     * ïœêî
-    -----------------------------------------------*/
-    _QEI QEI[2];   /* ÉGÉìÉRÅ[É_ä÷òA */
-    QEI[0].count = 0;
-    QEI[1].count = 0;
-    
+    Initialize(); /* ÂàùÊúüÂåñ */
+
+    short Rev[2] = {0, 0}; /* ÂõûËª¢ */
+    short Residue[2] = {0, 0}; /* ÔºëÂõûËª¢„Å´Ê∫Ä„Åü„Å™„ÅÑ„Ç´„Ç¶„É≥„Éà */
+    bool Reset[2] = {false, false}; /* „Ç´„Ç¶„É≥„Éà„ÇØ„É™„Ç¢„Éï„É©„Ç∞ */
+
+    POS1CNT = POS2CNT = 0;
+
     while (1)
     {
-        __delay_ms(30);     /* í êMÇÃé¸ä˙Çí≤êÆÇ∑ÇÈÇΩÇﬂ */
-
-        /* éÛêM */
+        /*-----------------------------------------------
+         * Âèó‰ø°
+        -----------------------------------------------*/
         if (status == reception_complete)
         {
             Reception_from_master_main();
             if (rx_has_started == 0)
+            {
                 rx_has_started = 1;
-            QEI[0].reset = RxData0[1].all_data;
-            QEI[1].reset = RxData0[2].all_data;
+            }
+            Reset[0] = RxData0[1].all_data;
+            Reset[1] = RxData0[2].all_data;
+            Mode = RxData0[3].all_data;
         }
 
-        /* ëóêMópÇ…ÉGÉìÉRÅ[É_ÇÃÉfÅ[É^ÇåvéZ */
-        QEI[0].count += QEI_Sampling(0, QEI[0]);
-        QEI[0].rotate = QEI[0].count / 1200;
-        QEI[0].res = QEI[0].count % 1200;
-        QEI[1].count += QEI_Sampling(1, QEI[1]);
-        QEI[1].rotate = QEI[1].count / 1200;
-        QEI[1].res = QEI[1].count % 1200;
-        
-        /* ëóêM */
+        /*-----------------------------------------------
+         * „Ç™„Éâ„É°„Éà„É™„ÇíË®àÁÆó
+        -----------------------------------------------*/
+        CalcOdometry(Rev, Residue, Reset);
+
+        /*-----------------------------------------------
+         * ÈÄÅ‰ø°
+        -----------------------------------------------*/
         if (TxFrag)
-        {   
-            TxData0[0] = QEI[0].rotate >> 8;
-            TxData0[1] = QEI[0].rotate & 0xFF;
-            TxData0[2] = QEI[0].res >> 8;
-            TxData0[3] = QEI[0].res & 0xFF;
-            TxData0[4] = QEI[1].rotate >> 8;
-            TxData0[5] = QEI[1].rotate & 0xFF;
-            TxData0[6] = QEI[1].res >> 8;
-            TxData0[7] = QEI[1].res & 0xFF;    
+        {
+            TxData0[0] = UP(Rev[0]);
+            TxData0[1] = LOW(Rev[0]);
+            TxData0[2] = UP(Residue[0]);
+            TxData0[3] = LOW(Residue[0]);
+            TxData0[4] = UP(Rev[1]);
+            TxData0[5] = LOW(Rev[1]);
+            TxData0[6] = UP(Residue[1]);
+            TxData0[7] = LOW(Residue[1]);
+
+            __delay_ms(10 * number_of_txdata0);
+
             Send_StartSignal(EUSART_Write, EUSART_TxInterrupt_Control, U2TXIE);
         }
-        
-        if(QEI1IF)
-            debug_LED1 = true;
     }
     return (EXIT_SUCCESS);
 }
 
-/*-----------------------------------------------
- * àÍâÒëOÇ…åƒÇ—èoÇ≥ÇÍÇΩÇ∆Ç´ÇÃÉJÉEÉìÉg pre_POSxCNT Ç∆ POSxCNT ÇÃç∑ï™Çï‘Ç∑
------------------------------------------------*/
-short QEI_Sampling(unsigned char channel, _QEI QEI)
+void CalcOdometry(short Rev[], short Residue[], bool Reset[])
 {
-    short result, POSxCNT;
-    static unsigned short pre_POSxCNT[2] = { INIT_QEI_VALUE, INIT_QEI_VALUE };
-    bool QEIxIF;
-    
-    /* POSxCNT, QEIxIF ÇÉZÉbÉg */
-    if(channel == 0)
+    /*-----------------------------------------------
+     * „É™„Çª„ÉÉ„Éà
+    -----------------------------------------------*/
+    if (Reset[0] == true)
     {
-        POSxCNT = POS1CNT;
-        QEIxIF = QEI1IF;
+        IntCnt[0] = 0;
+        POS1CNT = 0;
     }
-    else if(channel == 1)
+    if (Reset[1] == true)
     {
-        POSxCNT = POS2CNT;
-        QEIxIF = QEI2IF;
+        IntCnt[1] = 0;
+        POS2CNT = 0;
     }
-    else while(1);
+    ErrorLED = Reset[0] | Reset[1];
 
-    /* QEI ÇÃÉäÉZÉbÉgÉtÉâÉOÇ™óLå¯ÇÃÇ∆Ç´ */
-    if(QEI.reset)
+    /*-----------------------------------------------
+     * POSxCNT „Å® IntCnt „Åã„Çâ Rev „Å® Residue Ë®àÁÆó„Åô„Çã
+    -----------------------------------------------*/
+    int32_t PosCnt[2] = {0, 0}; /* Ââ≤„ÇäËæº„Åø„Å®Á¨¶Âè∑„ÇíËÄÉÊÖÆ„Åó„Åü QEI „ÅÆ„Ç´„Ç¶„É≥„Éà */
+    short Coef = EncoderResolution[Mode] * 4; /* ÂõûËª¢„ÇíÊ±Ç„ÇÅ„Çã„Å®„Åç„Å´‰ΩøÁî®„Åô„Çã‰øÇÊï∞ÔºàcoefficientÔºâ */
+    /* X */
+    PosCnt[0] = IntCnt[0] * 65536 + POS1CNT;
+    Rev[0] = PosCnt[0] / Coef;
+    Residue[0] = (PosCnt[0] % Coef) * 360 / Coef; /* [cnt] ‚Üí [deg] */
+    if (PolInverse[Mode][0] == true)
     {
-        pre_POSxCNT[channel] = INIT_QEI_VALUE;
-        return 0;
+        Rev[0] *= -1;
+        Residue[0] *= -1;
     }
-    
-    /* QEI ÇÃäÑÇËçûÇ›Ç™óLå¯ÅCÇ¬Ç‹ÇË POSxCNT ÉåÉWÉXÉ^Ç™ÉIÅ[ÉoÅ[ÉtÉçÅ[Ç‡ÇµÇ≠ÇÕÉAÉìÉ_Å[ÉtÉçÅ[ÇµÇΩèÍçá */
-    if (QEIxIF)
+    /* Y */
+    PosCnt[1] = IntCnt[1] * 65536 + POS2CNT;
+    Rev[1] = PosCnt[1] / Coef;
+    Residue[1] = (PosCnt[1] % Coef) * 360 / Coef; /* [cnt] ‚Üí [deg] */
+    if (PolInverse[Mode][1] == true)
     {
-        /* ÉAÉìÉ_Å[ÉtÉçÅ[ */
-        if (POSxCNT > pre_POSxCNT[channel])
-            result = POSxCNT + 65536 - pre_POSxCNT[channel];
-        /* ÉIÅ[ÉoÅ[ÉtÉçÅ[ */
-        else if (POSxCNT < pre_POSxCNT[channel])
-            result = POSxCNT - 65536 - pre_POSxCNT[channel];
-        
-        /* äÑÇËçûÇ›ÉtÉâÉOÉNÉäÉA */
-        if(channel == 0) QEI1IF = false;
-        else if(channel == 1) QEI2IF = false;
+        Rev[1] *= -1;
+        Residue[1] *= -1;
     }
-    /* ÉIÅ[ÉoÅ[ÉtÉçÅ[Ç‡ÉAÉìÉ_Å[ÉtÉçÅ[Ç‡ãNÇ±ÇÁÇ»Ç©Ç¡ÇΩÇ∆Ç´ */
-    else
-        result = POSxCNT - pre_POSxCNT[channel];
-
-    /* ílÇçXêV */
-    pre_POSxCNT[channel] = POSxCNT;
-
-    return result;
 }
 
-void EUSART_Write(unsigned char data) {
+/* QEI Ââ≤„ÇäËæº„Åø */
+void __attribute__((interrupt, no_auto_psv)) _QEI1Interrupt()
+{
+    if (QEI1CONbits.UPDN == true)
+    {
+        IntCnt[0]++;
+    }
+    else
+    {
+        IntCnt[0]--;
+    }
+    QEI1IF = false;
+}
+
+void __attribute__((interrupt, no_auto_psv)) _QEI2Interrupt()
+{
+    if (QEI2CONbits.UPDN == true)
+    {
+        IntCnt[1]++;
+    }
+    else
+    {
+        IntCnt[1]--;
+    }
+    QEI2IF = false;
+}
+
+void EUSART_Write(unsigned char data)
+{
     U2TXREG = data;
 }
 
-void EUSART_TxInterrupt_Control(bool enable_or_disable) {
+void EUSART_TxInterrupt_Control(bool enable_or_disable)
+{
     U2TXIE = enable_or_disable;
 }
 
@@ -196,39 +202,49 @@ void __attribute__((interrupt, no_auto_psv)) _U1RXInterrupt()
     status = Reception_from_master(MY_ADDRESS);
 }
 
-void __attribute__((interrupt, no_auto_psv)) _U2TXInterrupt() {
-    debug_LED2 ^= 1;
+void __attribute__((interrupt, no_auto_psv)) _U2TXInterrupt()
+{
+    debug_LED1 ^= 1;
     TxFrag = Send_Till_EndSignal(TxData0, EUSART_Write, EUSART_TxInterrupt_Control, number_of_txdata0, bus1);
     U2TXIF = disable;
 }
 
-void Initialize() {
-    int i;
+void Initialize()
+{
     Initialize_Parameters();
     /*Oscillator*/
-    OSCTUN = 0;
-    PLLFBD = 16; //M=18
+    OSCTUN = 18;
+    PLLFBD = 40 - 2; //M=18
     CLKDIVbits.PLLPRE = 0; //PLL prescaler : /2  = N1
     CLKDIVbits.PLLPOST = 0; //PLL postscaler : /2 = N2
-    //#pragma config FNOSC = LPRCDIVN ÇÊÇËÅ@Fin=7.37MHz(FRC)
-    /* Å™ ÇÊÇËÅ@Fosc=Fin*(M/(N1*N2)) =33.165MHz
-     Fcy=16.5825MHz*/
+    //#pragma config FNOSC = FRC „Çà„Çä Fin=7.37MHz
+    /* ‚Üë „Çà„Çä Fosc=Fin*(M/(N1*N2)) =78.4MHz‚âí80MHz
+     Fcy‚âí40MHz=80MHz/2*/
+
+    /*Initiate Clock Switch to Fast RC oscillator with PLL(NOSC=0b001)*/
+    __builtin_write_OSCCONH(0x01);
+    __builtin_write_OSCCONL(0x01);
+
+    /*Wait for Clock switch to occur
+     * (current oscillator „Åå0b001ÔºùFRC„Åß„Å™„ÅÑÈñì„ÅØÂæÖÊ©ü)*/
+    while (OSCCONbits.COSC != 0b001);
+
+    /*Wait for PLL to lock*/
+    while (OSCCONbits.LOCK != 1);
 
     /*Interrupt*/
-#if 1 //äÑÇËçûÇ›Ç∑ÇÈ:1 ÇµÇ»Ç¢:0
+#if 1 //Ââ≤„ÇäËæº„Åø„Åô„Çã:1 „Åó„Å™„ÅÑ:0
     SRbits.IPL = 0; // CPU interrupt priority level:zero
     CORCONbits.IPL3 = 0; //CPU interrupt priority level:<7
     INTCON1bits.NSTDIS = 0; //Allow interrupt nesting
     INTCON2bits.ALTIVT = 0; //use primary vector table
 
-    //IEC0bits.OC1IE = enable;
     U1TXIE = disable; //UART1 tx interrupt enable
     U2TXIE = disable;
     U1RXIE = enable;
-    // IEC3bits.QEI1IE = disable;
     T1IE = disable; //timer1 interrupt enable
-    //IEC0bits.T2IE = disable;
-    //IPC3bits.U1TXIP = 0x7; //interrupt is priority 6
+    QEI1IE = enable; /* QEI Ââ≤„ÇäËæº„Åø */
+    QEI2IE = enable;
     U2TXIP = 0x7; //Interrupt priority level:6
     U1RXIP = 0x7; //Interrupt priority level:6
     QEI1IP = 0x5;
@@ -254,8 +270,8 @@ void Initialize() {
     TRISBbits.TRISB9 = 1;
     QEB2R = 0x9;
 
-    TRISBbits.TRISB12 = 0; //motor1-front 
-    TRISAbits.TRISA2 = 0; //motor1-back 
+    TRISBbits.TRISB12 = 0; //motor1-front
+    TRISAbits.TRISA2 = 0; //motor1-back
 
     TRISAbits.TRISA3 = 0; //motor2-front
     TRISBbits.TRISB13 = 0; //motor2-back
@@ -266,83 +282,52 @@ void Initialize() {
     TRISBbits.TRISB4 = 0; //OC2-RB4
     RPOR2bits.RP4R = 0b10011;
 
-    AD1PCFGL = 0xFFFF; //Ç¬ÇØÇΩÇÁìÆÇ©Ç»Ç©Ç¡ÇΩÅEÅEÅE
+    AD1PCFGL = 0xFFFF; //„Å§„Åë„Åü„ÇâÂãï„Åã„Å™„Åã„Å£„Åü„Éª„Éª„Éª
 
 
     /*UART1*/
-    PMD1bits.U1MD = disable; //U1 disable:disable
-    // U1MODE = 0x8808;
-    U1MODEbits.UARTEN = enable; //UART1 is enabled
-    U1MODEbits.USIDL = 0; //continue module operation in Idle mode
-    U1MODEbits.IREN = disable; //IrDA disable
-    U1MODEbits.RTSMD = 1; //U1RTS pin in simplex mode-íPêM
-    U1MODEbits.UEN = 0x00; //TX,RX are enabled and used, CTS and RTS are controlled by port latches
-    U1MODEbits.LPBACK = disable; //disable loopback
-    U1MODEbits.ABAUD = disable; //auto baud rate disa
+    //PMD1bits.U1MD = disable; //U1 disable:disable
+    U1MODE = 0x0808;
+    U2STA = 0x2000;
+    U1TXIF = disable; //Interrupt flag disable
+    U1RXIF = disable; //Interrupt flag disable
 
-    U1MODEbits.URXINV = 0; //receive idle status: 1 ->use pull-up resistor on the rx pin
-    /*UART1 is enabled, continue module operation in idle mode,IrDA disable, U1RTS pin in simplex mode, 
+    /*UART1 is enabled, continue module operation in idle mode,IrDA disable, U1RTS pin in simplex mode,
      * TX&RX pin are enabled and used, disable loopback, auto baud rate disable, high baud rate enable,receive idle status:1*/
-    U1BRG = 15;
+    U1BRG = 165;
+    U1MODEbits.UARTEN = enable; //UART1 is enabled
+    U1STAbits.UTXEN = enable; //transmit enable
 
     /*UART2*/
-    PMD1bits.U2MD = disable; //U1 disable:disable
-    U2MODEbits.UARTEN = enable; //UART1 is enabled
-    U2MODEbits.USIDL = 0; //continue module operation in Idle mode
-    U2MODEbits.IREN = disable; //IrDA disable
-    U2MODEbits.RTSMD = 1; //U1RTS pin in simplex mode-íPêM
-    U2MODEbits.UEN = 0x00; //TX,RX are enabled and used, CTS and RTS are controlled by port latches
-    U2MODEbits.LPBACK = disable; //disable loopback
-    U2MODEbits.ABAUD = disable; //auto baud rate disable
-    U2MODEbits.BRGH = 1; //high baud rate enable
-    U2MODEbits.URXINV = 0; //receive idle status: 0 ->use pull-down resistor on the rx pin
-    U2BRG = 15;
-
-    /*transmission*/
-    //#1
-    U1STAbits.UTXISEL1 = 1; //transmit interrupt :when transmit buffer becomes empty
-    U1STAbits.UTXEN = enable; //transmit enable
-    U1TXIF = disable; //Interrupt flag disable
-
-    U2STAbits.UTXISEL1 = 1; //transmit interrupt :when transmit buffer becomes empty
-    U2STAbits.UTXEN = enable; //transmit enable
+    //PMD1bits.U2MD = disable; //U1 disable:disable
+    U2MODE = 0x0808;
+    U2STA = 0x2000;
     U2TXIF = disable; //Interrupt flag disable
-
-    /*reception*/
-    //#2
-    U1STAbits.URXISEL = 0x00; //receive interrupt set: transfer making the receive buffer full
-    U1STAbits.ADDEN = disable; //address detect disable 
-    U1RXIF = disable; //Interrupt flag disable
+    U2BRG = 165;
+    U2MODEbits.UARTEN = enable; //UART1 is enabled
+    U2STAbits.UTXEN = enable; //transmit enable
 
     /*QEI1*/
     QEI1CONbits.QEISIDL = disable; //continue module operation in idle mode
     QEI1CONbits.QEIM = 0x7; //QEI enabled (x4 mode) with position counter reset by match(MAX1CNT)
-    QEI1CONbits.SWPAB = disable; //A and B inputs not swapped-åä∑
+    QEI1CONbits.SWPAB = disable; //A and B inputs not swapped-‰∫§Êèõ
     QEI1CONbits.PCDOUT = disable; //direction status output disabled
     QEI1CONbits.TQGATE = disable;
     QEI1CONbits.UPDN = 1; //position counter direction is Positive
     MAX1CNT = 0xFFFF;
-    POS1CNT = INIT_QEI_VALUE;   /* ÉJÉEÉìÉgÉäÉZÉbÉg */
+    POS1CNT = 0; /* „Ç´„Ç¶„É≥„Éà„É™„Çª„ÉÉ„Éà */
     QEI1IF = false;
 
     /*QEI2*/
     QEI2CONbits.QEISIDL = disable; //continue module operation in idle mode
     QEI2CONbits.QEIM = 0x7; //QEI enabled (x4 mode) with position counter reset by match(MAX1CNT)
-    QEI2CONbits.SWPAB = disable; //A and B inputs not swapped-åä∑
+    QEI2CONbits.SWPAB = disable; //A and B inputs not swapped-‰∫§Êèõ
     QEI2CONbits.PCDOUT = disable; //direction status output disabled
     QEI2CONbits.TQGATE = disable;
     QEI2CONbits.UPDN = 1; //position counter direction is Positive
     MAX2CNT = 0xFFFF;
-    POS2CNT = INIT_QEI_VALUE;   /* ÉJÉEÉìÉgÉäÉZÉbÉg */
+    POS2CNT = 0; /* „Ç´„Ç¶„É≥„Éà„É™„Çª„ÉÉ„Éà */
     QEI2IF = false;
-
-    /*Timer1*/
-//    T1CONbits.TCS = T1CONbits.TGATE = T1CONbits.TSYNC = 0; //Timer mode
-//    T1CONbits.TON = OFF; //Timer off
-//    T1CONbits.TSIDL = 0; //Continue module operation in Idle mode
-//    T1CONbits.TCKPS = 0x01; //prescale 1:8
-//    PR1 = 22727; //50ms   1818; //4ms  
-//    T1CONbits.TON = ON; //Timer on   
 
     /*Timer2(for OC1)*/
     T2CONbits.TCS = T2CONbits.TGATE = T2CONbits.T32 = OFF; //Mode:16bit Timer
@@ -365,7 +350,4 @@ void Initialize() {
     OC2CONbits.OCTSEL = 0; //timer2
     // OC1RS = 2220; //decide the length of HI:0.5ms
     PR2 = 65535; //decide the length of period:144ms
-
-    for (i = 0; i < data_amount; i++)
-        display[i] = 0;
 }

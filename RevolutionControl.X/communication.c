@@ -1,4 +1,4 @@
-/* 
+/*
  * File:   communication.c
  * Author: nemoto
  *
@@ -9,8 +9,11 @@
 #include "Controller_Protocol.h"
 #include <xc.h>
 
+
+#define debug_LED1 LATBbits.LATB2
+#define debug_LED2 LATBbits.LATB3
 /*
- * 
+ *
  */
 
 bool Receive_flag = waiting_to_receive;
@@ -31,7 +34,7 @@ void Flag_reset(void);
 
 /*debug*/
 int debug_buf;
-
+ unsigned char Rx_buf;
 //受信の割り込みを許可
 
 bool EUSART_ERROR_from_master(void) {
@@ -51,11 +54,10 @@ bool EUSART_ERROR_from_master(void) {
 }
 
 bool Reception_from_master(uint8_t slave_address) {
-    extern char data;
     static uint8_t Receive_data_count = 0;
     uint8_t error_complete = 0;
     /*debug*/
-    unsigned char Rx_buf;
+
 
     //    error_complete = Store_Datas(Buffer_from_master, REG_from_master, NOB, master_COM, EUSART_ERROR_from_master());
     //
@@ -76,17 +78,19 @@ bool Reception_from_master(uint8_t slave_address) {
     //        //Timer_Start();
     //    }
 
-    Rx_buf = REG_from_master;
-//    U1TXREG = Rx_buf;
-//    while (U1STAbits.UTXBF);
-    //    data = REG_from_master;
-    //    IFS0bits.U1TXIF = enable;
+    Rx_buf = REG_from_master;  //この一文消すな！！！
 
+    /*debug*/
+//     U2TXREG = Rx_buf;
+//    while (U2STAbits.UTXBF);
+//    IFS1bits.U2TXIF = enable;
+    /*debug*/
 
     error_complete = Store_Datas(Buffer_from_master, Rx_buf, NOB, master_COM, EUSART_ERROR_from_master);
 
     if (error_complete == error) {
         Receive_data_count = clear;
+
     } else if ((error_complete == complete) && (Receive_data_count != (NOB - 1))) {
         Receive_data_count = clear;
     } else {
@@ -95,6 +99,7 @@ bool Reception_from_master(uint8_t slave_address) {
     }
 
     if ((error_complete == complete) && (Receive_data_count == NOB)) {
+
         Receive_flag = reception_complete;
         Receive_data_count = clear;
     }
@@ -127,6 +132,7 @@ bool slave_address_check(uint8_t data_count, uint8_t slave_address, uint8_t slav
             }
 
         }
+
         return continuation;
     } else {
         return slave_flag;
@@ -135,11 +141,11 @@ bool slave_address_check(uint8_t data_count, uint8_t slave_address, uint8_t slav
 
 void Reception_from_master_main(void) {
     if (Receive_flag == reception_complete) {
-        Receive_flag = waiting_to_receive;
         if (slave_different_flag == slave_match) {
             Organize_Datas(Data_from_master, Buffer_from_master, number_of_rxdata0, master_COM);
         }
         slave_different_flag = continuation;
+        Receive_flag = waiting_to_receive;
     }
 }
 

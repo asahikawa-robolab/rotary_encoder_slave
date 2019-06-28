@@ -3,8 +3,8 @@
     <type>com.microchip.mplab.nbide.embedded.makeproject</type>
     <configuration>
         <data xmlns="http://www.netbeans.org/ns/make-project/1">
-            <name>GNDEncoder</name>
-            <creation-uuid>ea25abc7-50af-4459-ab01-2d81970003ef</creation-uuid>
+            <name>RevolutionControl</name>
+            <creation-uuid>28ec1368-2f2b-4243-97e1-658d8aed9a39</creation-uuid>
             <make-project-type>0</make-project-type>
             <c-extensions>c</c-extensions>
             <cpp-extensions/>

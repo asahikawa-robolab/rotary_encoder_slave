@@ -1,4 +1,4 @@
-/* 
+/*
  * File:   communication.h
  * Author: nemoto
  *
@@ -29,7 +29,7 @@
 ////スレーブアドレス////
 /*
 スレーブアドレスはそれぞれ変えてください
-モータは下位ビットを、電磁弁とサーボは上位ビットを設定してください  
+モータは下位ビットを、電磁弁とサーボは上位ビットを設定してください
  */
 #define Motor_slave_address (PORTC & 0x0f)
 #define Encoder_slave_Address 0xe0
