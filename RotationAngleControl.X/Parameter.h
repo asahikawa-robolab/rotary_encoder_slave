@@ -37,7 +37,7 @@ const bool EncoderPol[MODE_NUM][2] = {
     {REVERSE, REVERSE},
     {REVERSE, 0},
     {REVERSE, 0},
-    {FORWARD, 0},
+    {REVERSE, 0},
 };
 /* エンコーダの種類 */
 const double EncoderKind[MODE_NUM][2] = {
