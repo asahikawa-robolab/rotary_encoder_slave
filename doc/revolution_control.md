@@ -1,5 +1,15 @@
 
 # revolution_control
+### フローチャート
+<details><summary>表示</summary><div>
+
+<br>
+
+***※太字斜体下線の文字列はパラメータで設定する値***
+
+![](img/flow_chart/revolution_control.svg)
+</details></div>
+
 ### 通信データ ( M->S )
     1. 書き込み禁止
     2. 目標回転数 1 上位 8 bit [ rpm ]

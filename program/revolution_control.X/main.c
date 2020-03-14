@@ -98,8 +98,8 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void)
 
         calc_encoder(curr_rev);  /* エンコーダに関する計算 */
         calc_pwm(pwm, curr_rev); /* pwm を計算 */
-        operate_motor(pwm);      /* モータを操作 */
         check_pol(pwm);          /* エンコーダの極性の確認 */
+        operate_motor(pwm);      /* モータを操作 */
 
         /* 送信 */
         if (g_tx_flag)
