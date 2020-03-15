@@ -17,12 +17,13 @@
 -----------------------------------------------*/
 typedef enum
 {
+    PARAM_ENABLE,
     PARAM_MAX_PWM,
-    PARAM_ENCODER_POL,
-    PARAM_ENCODER_RESOLUTION,
     PARAM_STOP_REV,
     PARAM_STOP_PWM,
-    PARAM_KP
+    PARAM_KP,
+    PARAM_ENCODER_POL,
+    PARAM_ENCODER_RESOLUTION
 } ParamList;
 
 /*-----------------------------------------------
@@ -214,7 +215,7 @@ void calc_pwm(double pwm[], double curr_rev[])
             pwm[i] = 0;
 
         /* kp が 0 のときは停止 */
-        if (g_param[PARAM_KP][i] == 0)
+        if (g_param[PARAM_ENABLE][i] == false)
             pwm[i] = 0;
 
         /* 前回の pwm を更新 */
@@ -233,7 +234,7 @@ void check_pol(double pwm[])
 
     for (size_t i = 0; i < 2; ++i)
     {
-        if (fabs(pwm[i]) > g_param[PARAM_MAX_PWM][i] && g_param[PARAM_KP][i] != 0)
+        if (fabs(pwm[i]) > g_param[PARAM_MAX_PWM][i] && g_param[PARAM_ENABLE][i] == true)
             ++err_cnt[i];
         else
             err_cnt[i] = CLEAR;

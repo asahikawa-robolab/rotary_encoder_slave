@@ -17,6 +17,7 @@
 -----------------------------------------------*/
 typedef enum
 {
+    PARAM_ENABLE,
     PARAM_MAX_PWM
 } ParamList;
 
@@ -74,10 +75,14 @@ int main(int argc, char **argv)
 -----------------------------------------------*/
 void calc_pwm(double pwm[], int16_t param[][PARAM_UNIT_NUM])
 {
-    /* 出力する PWM に上限を設定する */
     for (size_t i = 0; i < 2; ++i)
     {
+        /* 出力する PWM に上限を設定する */
         if (fabs(pwm[i]) > param[PARAM_MAX_PWM][i])
             pwm[i] = param[PARAM_MAX_PWM][i] * GET_SIGNAL_FLOAT(pwm[i]);
+
+        /* PARAM_ENABLE が false だったらモータを駆動しない */
+        if (param[PARAM_ENABLE][i] == false)
+            pwm[i] = 0;
     }
 }

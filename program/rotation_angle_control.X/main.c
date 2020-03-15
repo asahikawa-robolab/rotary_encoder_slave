@@ -1,5 +1,5 @@
 #define FCY 40000000UL /* delay 用 (Fosc/2) */
-#include <libpic30.h> /* delay */
+#include <libpic30.h>  /* delay */
 #include <stdlib.h>
 #include <xc.h>
 #include <math.h>
@@ -17,16 +17,17 @@
 -----------------------------------------------*/
 typedef enum
 {
-    PARAM_MAX_PWM,
+    PARAM_ENABLE,
     PARAM_ZERO_POINT_PWM,
+    PARAM_MAX_PWM,
     PARAM_MIN_PWM,
     PARAM_STOP_REV,
     PARAM_STOP_PWM,
-    PARAM_ENCODER_POL,
-    PARAM_ENCODER_RESOLUTION,
-    PARAM_KP,
     PARAM_PWM_CHANGE,
-    PARAM_PERMISSIBLE_ERR
+    PARAM_KP,
+    PARAM_PERMISSIBLE_ERR,
+    PARAM_ENCODER_POL,
+    PARAM_ENCODER_RESOLUTION
 } ParamList;
 
 /*-----------------------------------------------
@@ -208,6 +209,10 @@ void zero_point_pwm(double pwm[], size_t ch)
         inform_err(2);
 
     pwm[ch] = g_param[PARAM_ZERO_POINT_PWM][ch];
+
+    /* PARAM_ENABLE が無効だったらモータを駆動しない */
+    if (g_param[PARAM_ENABLE][ch] == false)
+        pwm[ch] = 0;
 }
 
 /*-----------------------------------------------
@@ -296,7 +301,7 @@ void calc_pwm(int64_t curr_cnt[], int16_t angle_diff[], double curr_rev[], doubl
     smoothen_pwm_change(pwm, ch);
 
     /* kp が 0 のときは停止 */
-    if (g_param[PARAM_KP][ch] == 0)
+    if (g_param[PARAM_ENABLE][ch] == false)
         pwm[ch] = 0;
 }
 
@@ -368,7 +373,7 @@ void check_pol(int16_t angle_diff[], double pwm[], size_t ch)
 
     /* 最大 PWM 出力時に回転角偏差が大きくなったら */
     bool c1 = (diff_change > 0);
-    bool c2 = (g_param[PARAM_KP][ch] != 0);
+    bool c2 = (g_param[PARAM_ENABLE][ch] == true);
     bool c3 = (fabs(pwm[ch]) == g_param[PARAM_MAX_PWM][ch]);
 
     if (c1 & c2 & c3)

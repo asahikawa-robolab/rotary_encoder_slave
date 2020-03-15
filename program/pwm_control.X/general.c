@@ -5,7 +5,7 @@
  *
 -----------------------------------------------*/
 #define FCY 40000000UL /* delay 用 (Fosc/2) */
-#include <libpic30.h> /* delay */
+#include <libpic30.h>  /* delay */
 #include <stdbool.h>
 #include <xc.h>
 #include <stdint.h>
@@ -55,6 +55,9 @@ void __attribute__((interrupt, no_auto_psv)) _U1RXInterrupt()
     U1RXIF = 0;
     Store_Datas(Buffer0, U1RXREG, number_of_rxdata0 * 2 + 3,
                 0, EUSART_ERROR_from_master);
+
+    /* デバッグ */
+    debug_LED1 ^= 1;
 }
 
 void __attribute__((interrupt, no_auto_psv)) _U1TXInterrupt()
