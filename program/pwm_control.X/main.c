@@ -77,9 +77,14 @@ void calc_pwm(double pwm[], int16_t param[][PARAM_UNIT_NUM])
 {
     for (size_t i = 0; i < 2; ++i)
     {
-        /* 出力する PWM に上限を設定する */
+        /* MAX PWM を出力する PWM の上限に設定する */
         if (fabs(pwm[i]) > param[PARAM_MAX_PWM][i])
             pwm[i] = param[PARAM_MAX_PWM][i] * GET_SIGNAL_FLOAT(pwm[i]);
+
+        /* -100 ～ 100 に収める */
+        pwm[i] = (fabs(pwm[i]) > 100)
+                      ? 100 * GET_SIGNAL_FLOAT(pwm[i])
+                      : pwm[i];
 
         /* PARAM_ENABLE が false だったらモータを駆動しない */
         if (param[PARAM_ENABLE][i] == false)

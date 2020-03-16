@@ -140,7 +140,13 @@ void calc_odometry(int32_t odometry[], int16_t param[][PARAM_UNIT_NUM])
     cnt[0] = (int64_t)(65536 * g_qei_int_cnt[0] + POS1CNT);
     cnt[1] = (int64_t)(65536 * g_qei_int_cnt[1] + POS2CNT);
 
-    /* 位置カウントを角度に変換 */
     for (size_t i = 0; i < 2; ++i)
+    {
+        /* 位置カウントを角度に変換 */
         odometry[i] = (int32_t)(cnt[i] / (param[PARAM_ENCODER_RESOLUTION][i] * 4.0) * 360.0);
+
+        /* PARAM_ENCODER_POL の値に応じて反転 */
+        if (param[PARAM_ENCODER_POL][i] == true)
+            odometry[i] *= -1;
+    }
 }
