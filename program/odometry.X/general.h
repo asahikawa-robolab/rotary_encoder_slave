@@ -1,4 +1,4 @@
-/* version 2020.01.20 */
+/* version 2020.03.17 */
 #ifndef GENERAL_H
 #define GENERAL_H
 
@@ -23,8 +23,8 @@
 #define ASBL(up, low) ((int16_t)((up) << 8) | (low)) /* Assemble */
 
 /* 符号を返す */
-#define GET_SIGNAL_INT(x) ((x) / abs(x))    /* 整数用 */
-#define GET_SIGNAL_FLOAT(x) ((x) / fabs(x)) /* 実数用 */
+#define GET_SIGNAL_INT(x) ((x) == 0 ? 0 : (x) / abs(x))    /* 整数用 */
+#define GET_SIGNAL_FLOAT(x) ((x) == 0 ? 0 : (x) / fabs(x)) /* 実数用 */
 
 /* パラメータ設定 */
 #define MAX_NUM_OF_PARAM 254 /* パラメータの最大個数 */
