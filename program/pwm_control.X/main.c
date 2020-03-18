@@ -81,11 +81,6 @@ void calc_pwm(double pwm[], int16_t param[][PARAM_UNIT_NUM])
         if (fabs(pwm[i]) > param[PARAM_MAX_PWM][i])
             pwm[i] = param[PARAM_MAX_PWM][i] * GET_SIGNAL_FLOAT(pwm[i]);
 
-        /* -100 ～ 100 に収める */
-        pwm[i] = (fabs(pwm[i]) > 100)
-                      ? 100 * GET_SIGNAL_FLOAT(pwm[i])
-                      : pwm[i];
-
         /* PARAM_ENABLE が false だったらモータを駆動しない */
         if (param[PARAM_ENABLE][i] == false)
             pwm[i] = 0;
