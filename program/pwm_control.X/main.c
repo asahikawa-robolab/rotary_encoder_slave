@@ -18,7 +18,8 @@
 typedef enum
 {
     PARAM_ENABLE,
-    PARAM_MAX_PWM
+    PARAM_MAX_PWM,
+    PARAN_MAX_PWM_CHANGE
 } ParamList;
 
 /*-----------------------------------------------
@@ -26,8 +27,16 @@ typedef enum
  * 宣言
  *
 -----------------------------------------------*/
-extern void Initialize();
-void calc_pwm(double pwm[], int16_t param[][PARAM_UNIT_NUM]);
+extern void Initialize(void);
+void calc_pwm(double pwm[]);
+
+/*-----------------------------------------------
+ *
+ * グローバル変数
+ *
+-----------------------------------------------*/
+int8_t g_target_pwm[2];                            /* 目標デューティー比 */
+int16_t g_param[MAX_NUM_OF_PARAM][PARAM_UNIT_NUM]; /* パラメータ */
 
 /*-----------------------------------------------
  *
@@ -43,24 +52,12 @@ int main(int argc, char **argv)
     setup_peripheral_module();
 
     /* パラメータ読み込み */
-    int16_t param[MAX_NUM_OF_PARAM][PARAM_UNIT_NUM];
-    load_param(param);
-
-    /* モータ */
-    double pwm[2] = {0, 0};
+    load_param(g_param);
 
     while (1)
     {
         /* 受信 */
         Organize_Datas(RxData0, Buffer0, number_of_rxdata0, 0);
-        pwm[0] = (int8_t)RxData0[1].all_data;
-        pwm[1] = (int8_t)RxData0[2].all_data;
-
-        /* PWM を計算 */
-        calc_pwm(pwm, param);
-
-        /* モータを操作 */
-        operate_motor(pwm);
 
         /* 動作周期調整 */
         __delay_ms(5);
@@ -70,19 +67,51 @@ int main(int argc, char **argv)
 
 /*-----------------------------------------------
  *
+ * タイマ割り込み
+ *
+-----------------------------------------------*/
+void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void)
+{
+    static size_t TmrIntCnt; /* タイマー割り込みの発生した回数 */
+
+    T1IF = CLEAR;
+    PR1 = TIMER_1MS;
+    ++TmrIntCnt;
+
+    /* CALC_PERIOD [ms] 毎に真になる */
+    if (TmrIntCnt >= CALC_PERIOD)
+    {
+        TmrIntCnt = CLEAR;
+
+        double pwm[2];
+
+        calc_pwm(pwm);      /* pwm を計算 */
+        operate_motor(pwm); /* モータを操作 */
+    }
+}
+
+/*-----------------------------------------------
+ *
  * PWM を計算
  *
 -----------------------------------------------*/
-void calc_pwm(double pwm[], int16_t param[][PARAM_UNIT_NUM])
+void calc_pwm(double pwm[])
 {
-    for (size_t i = 0; i < 2; ++i)
-    {
-        /* MAX PWM を出力する PWM の上限に設定する */
-        if (fabs(pwm[i]) > param[PARAM_MAX_PWM][i])
-            pwm[i] = param[PARAM_MAX_PWM][i] * GET_SIGNAL_FLOAT(pwm[i]);
+    static double pre_pwm[2]; /* 前回のpwm */
 
-        /* PARAM_ENABLE が false だったらモータを駆動しない */
-        if (param[PARAM_ENABLE][i] == false)
-            pwm[i] = 0;
+    for (size_t i = 0; i < 1; i++)
+    {
+        /* 受信したpwmを代入 */
+        pwm[i] = (int8_t)RxData0[i + 1].all_data;
+
+        /* 変化量を計算 */
+        double pwm_change = pwm[i] - pre_pwm[i];
+
+        /* 変化量を PARAM_MAX_PWM_CHANGE に収める */
+        if (fabs(pwm_change) > g_param[PARAN_MAX_PWM_CHANGE][i] / 20)
+            pwm[i] = pre_pwm[i] + g_param[PARAN_MAX_PWM_CHANGE][i] / 20 * GET_SIGNAL_FLOAT(pwm_change);
+
+        /* 更新 */
+        pre_pwm[i] = pwm[i];
     }
 }

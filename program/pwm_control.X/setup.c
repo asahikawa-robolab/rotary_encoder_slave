@@ -37,10 +37,10 @@ void setup_pin(void)
     TRISB3 = 0;        /* debug_LED2 */
     TRISB15 = 0;       /* UART1 TX */
     TRISB11 = 1;       /* UART1 RX */
-    TRISB7 = 1;        /* QEI1A */
-    TRISB8 = 1;        /* QEI1B */
-    TRISB10 = 1;       /* QEI2 */
-    TRISB9 = 1;        /* QEI2 */
+    // TRISB7 = 1;        /* QEI1A */
+    // TRISB8 = 1;        /* QEI1B */
+    // TRISB10 = 1;       /* QEI2 */
+    // TRISB9 = 1;        /* QEI2 */
     TRISB12 = 0;       /* MOTOR_F1 */
     TRISA2 = 0;        /* MOTOR_B1 */
     TRISA3 = 0;        /* MOTOR_F2 */
@@ -62,8 +62,7 @@ void setup_pin(void)
 void setup_peripheral_module(void)
 {
     /* UART1 */
-    U1TXIE = disable; /* 送信割り込み許可 */
-    U1RXIE = enable;  /* 受信割り込み許可 */
+    U1RXIE = enable; /* 受信割り込み許可 */
     U1MODE = 0x0808;
     U1STA = 0x2000;
     U1BRG = 165;
@@ -96,10 +95,11 @@ void setup_peripheral_module(void)
     // POS2CNT = 0;                 /* 位置カウントリセット */
 
     /* Timer1 */
-    // T1CKPS = 0b00; /* プリスケール値１：１ */
-    // TMR1 = 0;
-    // PR1 = 0;
-    // T1ON = OFF; /* Timer ON ビット */
+    T1IE = enable; /* タイマ割り込み許可 */
+    T1CKPS = 0b00; /* プリスケール値１：１ */
+    TMR1 = 0;
+    PR1 = TIMER_1MS;
+    T1ON = ON; /* Timer ON ビット */
 
     /* OC 用（先に Timer の設定をしなければならない） */
     /* Timer2 */
@@ -116,8 +116,8 @@ void setup_peripheral_module(void)
     OC2TSEL = 0;  /* クロック源を Timer2 に */
 
     /* ピン変化割り込み */
-    // CN2IE = disable; /* 割り込みを発生させるピンを選択 */
-    // CN3IE = disable;
-    // CNIF = 0;       /* 割り込みフラグクリア */
-    // CNIE = disable; /* 割り込み許可 */
+    // CN2IE = enable; /* 割り込みを発生させるピンを選択 */
+    // CN3IE = enable;
+    // CNIF = 0;      /* 割り込みフラグクリア */
+    // CNIE = enable; /* 割り込み許可 */
 }

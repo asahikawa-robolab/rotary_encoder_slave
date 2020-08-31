@@ -50,6 +50,11 @@ bool EUSART_ERROR_from_master(void)
     return not_error;
 }
 
+/*-----------------------------------------------
+ *
+ * 通信割り込み
+ *
+-----------------------------------------------*/
 void __attribute__((interrupt, no_auto_psv)) _U1RXInterrupt()
 {
     U1RXIF = 0;

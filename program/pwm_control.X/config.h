@@ -1,11 +1,13 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#include "dsPIC33FJ128MC802.h"
-
 /* debug */
 #define debug_LED1 LATB3
 #define debug_LED2 LATB2
+
+/* timer1 interrupt */
+#define TIMER_1MS 39201 /* 1 [ms] 分のカウント */
+#define CALC_PERIOD 50  /* 計算を行う周期 [ms] */
 
 /* OC */
 #define OC_PERIOD 0x0800
