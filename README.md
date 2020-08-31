@@ -20,8 +20,7 @@
     ├── odometry.X ---------------> odometry のプログラム
     ├── pwm_control.X ------------> pwm_control のプログラム
     ├── revolution_control.X -----> revolution_control のプログラム
-    ├── rotation_angle_control.X -> rotation_angle_control のプログラム
-    └── sample -------------------> マスター側のサンプルプログラム
+    └── rotation_angle_control.X -> rotation_angle_control のプログラム
 ```
 
 
