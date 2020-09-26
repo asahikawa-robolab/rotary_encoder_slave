@@ -58,6 +58,8 @@ int main(int argc, char **argv)
     {
         /* 受信 */
         Organize_Datas(RxData0, Buffer0, number_of_rxdata0, 0);
+        g_target_pwm[0] = RxData0[1].all_data;
+        g_target_pwm[1] = RxData0[2].all_data;
 
         /* 動作周期調整 */
         __delay_ms(5);
@@ -99,7 +101,7 @@ void calc_pwm(double pwm[])
 {
     static double pre_pwm[2]; /* 前回のpwm */
 
-    for (size_t i = 0; i < 1; i++)
+    for (size_t i = 0; i < 2; i++)
     {
         /* 受信したpwmを代入 */
         pwm[i] = (int8_t)RxData0[i + 1].all_data;
