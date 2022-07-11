@@ -23,7 +23,8 @@ typedef enum
     PARAM_STOP_PWM,
     PARAM_KP,
     PARAM_ENCODER_POL,
-    PARAM_ENCODER_RESOLUTION
+    PARAM_ENCODER_RESOLUTION,
+    PARAM_ERROR_STOP
 } ParamList;
 
 /*-----------------------------------------------
@@ -46,6 +47,7 @@ void inform_err(size_t ch);
 int64_t g_qei_int_cnt[2];                          /* QEI割り込みが発生した回数 */
 int16_t g_target_rev[2];                           /* 目標回転数 */
 int16_t g_param[MAX_NUM_OF_PARAM][PARAM_UNIT_NUM]; /* パラメータ */
+int16_t period_count = 0;
 
 /*-----------------------------------------------
  *
@@ -232,18 +234,30 @@ void check_pol(double pwm[])
 {
     static size_t err_cnt[2];
 
+    if (pwm[0] != 0 || pwm[1] != 0)
+        period_count++;
+
     for (size_t i = 0; i < 2; ++i)
     {
-        if (fabs(pwm[i]) > g_param[PARAM_MAX_PWM][i] && g_param[PARAM_ENABLE][i] == true)
-            ++err_cnt[i];
-        else
-            err_cnt[i] = CLEAR;
+        if (period_count < 20 || g_param[PARAM_ERROR_STOP][i])
+        {
+            if (fabs(pwm[i]) > g_param[PARAM_MAX_PWM][i] && g_param[PARAM_ENABLE][i] == true)
+                ++err_cnt[i];
+            else
+                err_cnt[i] = CLEAR;
 
-        if (err_cnt[i] > 3)
-            inform_err(i);
+            if (err_cnt[i] > 3)
+                inform_err(i);
+        }
+        else
+        {
+            if (pwm[i] > g_param[PARAM_MAX_PWM][i] && g_param[PARAM_ENABLE][i] == true)
+                pwm[i] = g_param[PARAM_MAX_PWM][i];
+            if (pwm[i] < -g_param[PARAM_MAX_PWM][i] && g_param[PARAM_ENABLE][i] == true)
+                pwm[i] = -g_param[PARAM_MAX_PWM][i];
+        }
     }
 }
-
 /*-----------------------------------------------
  *
  * LED を点滅させてエラーを知らせる
