@@ -234,11 +234,13 @@ void check_pol(double pwm[])
 {
     static size_t err_cnt[2];
 
+    /*何かしらのPWMの変更があれば起動したとみなす*/
     if (pwm[0] != 0 || pwm[1] != 0)
         period_count++;
 
     for (size_t i = 0; i < 2; ++i)
     {
+        /*起動してから20周期以内かエラーストップがONなら極性チェックを行う*/
         if (period_count < 20 || g_param[PARAM_ERROR_STOP][i])
         {
             if (fabs(pwm[i]) > g_param[PARAM_MAX_PWM][i] && g_param[PARAM_ENABLE][i] == true)
@@ -251,6 +253,7 @@ void check_pol(double pwm[])
         }
         else
         {
+            /*そうでなくて最大PWMを超えたときには範囲に収める*/
             if (pwm[i] > g_param[PARAM_MAX_PWM][i] && g_param[PARAM_ENABLE][i] == true)
                 pwm[i] = g_param[PARAM_MAX_PWM][i];
             if (pwm[i] < -g_param[PARAM_MAX_PWM][i] && g_param[PARAM_ENABLE][i] == true)

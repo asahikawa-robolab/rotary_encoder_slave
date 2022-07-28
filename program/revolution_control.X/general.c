@@ -134,6 +134,10 @@ void apply_pwm(double pwm[])
     /* pwm の絶対値を 100 以下に収める */
     for (size_t i = 0; i < 2; ++i)
     {
+        /*pwmの値が非数だったら0 にする*/
+        if (!(pwm[i] <= 0 || 0 < pwm[i]))
+            pwm[i] = 0;
+
         if (fabs(pwm[i]) > 100)
             pwm[i] = 100 * GET_SIGNAL_FLOAT(pwm[i]);
     }
