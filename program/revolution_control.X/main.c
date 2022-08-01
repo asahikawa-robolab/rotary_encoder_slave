@@ -199,8 +199,12 @@ void calc_pwm(double pwm[], double curr_rev[])
 
     for (size_t i = 0; i < 2; ++i)
     {
-        /* 比例制御 */
-        pwm[i] = pre_pwm[i] + (g_target_rev[i] - curr_rev[i]) * g_param[PARAM_KP][i] * 1E-2;
+        /* エンコーダーの値が異常だったら前回のPWMにする */
+        if (fabs(curr_rev[i]) > 5000 && pre_pwm[i] != 0)
+            pwm[i] = pre_pwm[i];
+        else
+            /* 比例制御 */
+            pwm[i] = pre_pwm[i] + (g_target_rev[i] - curr_rev[i]) * g_param[PARAM_KP][i] * 1E-2;
 
         /* -100 ～ 100 に収める */
         pwm[i] = (fabs(pwm[i]) > 100)
@@ -221,7 +225,8 @@ void calc_pwm(double pwm[], double curr_rev[])
             pwm[i] = 0;
 
         /* 前回の pwm を更新 */
-        pre_pwm[i] = pwm[i];
+        if (!(fabs(curr_rev[i]) > 5000 && pre_pwm[i] != 0))
+            pre_pwm[i] = pwm[i];
     }
 }
 
