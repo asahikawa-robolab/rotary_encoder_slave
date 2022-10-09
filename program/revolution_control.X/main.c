@@ -24,7 +24,8 @@ typedef enum
     PARAM_KP,
     PARAM_ENCODER_POL,
     PARAM_ENCODER_RESOLUTION,
-    PARAM_ERROR_STOP
+    PARAM_ERROR_STOP,
+    PARAM_MAX_RPM
 } ParamList;
 
 /*-----------------------------------------------
@@ -47,7 +48,6 @@ void inform_err(size_t ch);
 int64_t g_qei_int_cnt[2];                          /* QEI割り込みが発生した回数 */
 int16_t g_target_rev[2];                           /* 目標回転数 */
 int16_t g_param[MAX_NUM_OF_PARAM][PARAM_UNIT_NUM]; /* パラメータ */
-int16_t period_count = 0;
 
 /*-----------------------------------------------
  *
@@ -195,10 +195,22 @@ void calc_rev(int64_t curr_cnt[], double curr_rev[])
 -----------------------------------------------*/
 void calc_pwm(double pwm[], double curr_rev[])
 {
-    static double pre_pwm[2]; /* 前回の pwm */
+    static double pre_pwm[2];  /* 前回の pwm */
+    static int16_t pre_rev[2]; /* 前回の pwm */
+    debug_LED2 = false;
 
     for (size_t i = 0; i < 2; ++i)
     {
+        if (fabs(g_target_rev[i]) > g_param[PARAM_MAX_RPM][i])
+        {
+            debug_LED2 = true;
+            g_target_rev[i] = pre_rev[i];
+        }
+        else
+        {
+            pre_rev[i] = g_target_rev[i];
+        }
+
         /* エンコーダーの値が異常だったら前回のPWMにする */
         if (fabs(curr_rev[i]) > 5000 && pre_pwm[i] != 0)
             pwm[i] = pre_pwm[i];
@@ -239,14 +251,10 @@ void check_pol(double pwm[])
 {
     static size_t err_cnt[2];
 
-    /*何かしらのPWMの変更があれば起動したとみなす*/
-    if (pwm[0] != 0 || pwm[1] != 0)
-        period_count++;
-
     for (size_t i = 0; i < 2; ++i)
     {
-        /*起動してから20周期以内かエラーストップがONなら極性チェックを行う*/
-        if (period_count < 20 || g_param[PARAM_ERROR_STOP][i])
+        /*エラーストップがONなら極性チェックを行う*/
+        if (g_param[PARAM_ERROR_STOP][i])
         {
             if (fabs(pwm[i]) > g_param[PARAM_MAX_PWM][i] && g_param[PARAM_ENABLE][i] == true)
                 ++err_cnt[i];
