@@ -62,9 +62,9 @@ typedef union {
 //#define number_of_rxdata2 8
 
 /*送信用記憶領域確保*/
-#define number_of_txdata0 6
+//#define number_of_txdata0 6
 //#define number_of_txdata1 8
-//#define number_of_txdata2 8
+#define number_of_txdata2 8
 
 /*通信バス数指定*/
 #define rx_number 2

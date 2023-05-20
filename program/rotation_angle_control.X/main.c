@@ -124,12 +124,14 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void)
         /* 送信 */
         if (g_tx_flag)
         {
-            TxData0[0] = UP(angle_diff[0]);
-            TxData0[1] = LOW(angle_diff[0]);
-            TxData0[2] = UP(angle_diff[1]);
-            TxData0[3] = LOW(angle_diff[1]);
-            TxData0[4] = (int8_t)pwm[0];
-            TxData0[5] = (int8_t)pwm[1];
+            TxData2[0] = UP(angle_diff[0]);
+            TxData2[1] = LOW(angle_diff[0]);
+            TxData2[2] = UP(angle_diff[1]);
+            TxData2[3] = LOW(angle_diff[1]);
+            TxData2[4] = (int8_t)pwm[0];
+            TxData2[5] = (int8_t)pwm[1];
+            TxData2[6] = (int8_t)ZERO_POINT1;
+            TxData2[7] = (int8_t)ZERO_POINT2;
             Send_StartSignal(EUSART_Write, EUSART_TxInterrupt_Control, U2TXIE);
         }
     }
@@ -167,21 +169,23 @@ void __attribute__((interrupt, no_auto_psv)) _CNInterrupt()
 {
     CNIF = 0;
 
-    if (ZERO_POINT1 & !g_zero_point_done[0])
+    if (ZERO_POINT1 && !g_zero_point_done[0])
     {
         /* モータ停止 */
         OC1RS = OC_PERIOD;
         MOTOR_F1 = 0;
         MOTOR_B1 = 0;
-
+        
         /* クリア */
         g_qei_int_cnt[0] = CLEAR;
         POS1CNT = CLEAR;
 
         /* フラグセット */
         g_zero_point_done[0] = true;
+        
+
     }
-    if (ZERO_POINT2 & !g_zero_point_done[1])
+    if (ZERO_POINT2 && !g_zero_point_done[1])
     {
         /* モータ停止 */
         OC2RS = OC_PERIOD;
@@ -191,10 +195,14 @@ void __attribute__((interrupt, no_auto_psv)) _CNInterrupt()
         /* クリア */
         g_qei_int_cnt[1] = CLEAR;
         POS2CNT = CLEAR;
-
         /* フラグセット */
         g_zero_point_done[1] = true;
+        
+
     }
+    /*送信*/
+
+    
 }
 
 /*-----------------------------------------------
