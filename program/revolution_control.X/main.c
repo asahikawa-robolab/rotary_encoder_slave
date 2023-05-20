@@ -23,7 +23,9 @@ typedef enum
     PARAM_STOP_PWM,
     PARAM_KP,
     PARAM_ENCODER_POL,
-    PARAM_ENCODER_RESOLUTION
+    PARAM_ENCODER_RESOLUTION,
+    PARAM_ERROR_STOP,
+    PARAM_MAX_RPM
 } ParamList;
 
 /*-----------------------------------------------
@@ -193,12 +195,28 @@ void calc_rev(int64_t curr_cnt[], double curr_rev[])
 -----------------------------------------------*/
 void calc_pwm(double pwm[], double curr_rev[])
 {
-    static double pre_pwm[2]; /* 前回の pwm */
+    static double pre_pwm[2];  /* 前回の pwm */
+    static int16_t pre_rev[2]; /* 前回の pwm */
+    debug_LED2 = false;
 
     for (size_t i = 0; i < 2; ++i)
     {
-        /* 比例制御 */
-        pwm[i] = pre_pwm[i] + (g_target_rev[i] - curr_rev[i]) * g_param[PARAM_KP][i] * 1E-2;
+        if (fabs(g_target_rev[i]) > g_param[PARAM_MAX_RPM][i])
+        {
+            debug_LED2 = true;
+            g_target_rev[i] = pre_rev[i];
+        }
+        else
+        {
+            pre_rev[i] = g_target_rev[i];
+        }
+
+        /* エンコーダーの値が異常だったら前回のPWMにする */
+        if (fabs(curr_rev[i]) > 5000 && pre_pwm[i] != 0)
+            pwm[i] = pre_pwm[i];
+        else
+            /* 比例制御 */
+            pwm[i] = pre_pwm[i] + (g_target_rev[i] - curr_rev[i]) * g_param[PARAM_KP][i] * 1E-2;
 
         /* -100 ～ 100 に収める */
         pwm[i] = (fabs(pwm[i]) > 100)
@@ -219,7 +237,8 @@ void calc_pwm(double pwm[], double curr_rev[])
             pwm[i] = 0;
 
         /* 前回の pwm を更新 */
-        pre_pwm[i] = pwm[i];
+        if (!(fabs(curr_rev[i]) > 5000 && pre_pwm[i] != 0))
+            pre_pwm[i] = pwm[i];
     }
 }
 
@@ -234,16 +253,27 @@ void check_pol(double pwm[])
 
     for (size_t i = 0; i < 2; ++i)
     {
-        if (fabs(pwm[i]) > g_param[PARAM_MAX_PWM][i] && g_param[PARAM_ENABLE][i] == true)
-            ++err_cnt[i];
-        else
-            err_cnt[i] = CLEAR;
+        /*エラーストップがONなら極性チェックを行う*/
+        if (g_param[PARAM_ERROR_STOP][i])
+        {
+            if (fabs(pwm[i]) > g_param[PARAM_MAX_PWM][i] && g_param[PARAM_ENABLE][i] == true)
+                ++err_cnt[i];
+            else
+                err_cnt[i] = CLEAR;
 
-        if (err_cnt[i] > 3)
-            inform_err(i);
+            if (err_cnt[i] > 3)
+                inform_err(i);
+        }
+        else
+        {
+            /*そうでなくて最大PWMを超えたときには範囲に収める*/
+            if (pwm[i] > g_param[PARAM_MAX_PWM][i] && g_param[PARAM_ENABLE][i] == true)
+                pwm[i] = g_param[PARAM_MAX_PWM][i];
+            if (pwm[i] < -g_param[PARAM_MAX_PWM][i] && g_param[PARAM_ENABLE][i] == true)
+                pwm[i] = -g_param[PARAM_MAX_PWM][i];
+        }
     }
 }
-
 /*-----------------------------------------------
  *
  * LED を点滅させてエラーを知らせる
