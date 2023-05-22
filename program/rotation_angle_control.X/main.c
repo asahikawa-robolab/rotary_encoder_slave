@@ -130,6 +130,8 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void)
             TxData0[3] = LOW(angle_diff[1]);
             TxData0[4] = (int8_t)pwm[0];
             TxData0[5] = (int8_t)pwm[1];
+            TxData0[6] = (int8_t)ZERO_POINT1;
+            TxData0[7] = (int8_t)ZERO_POINT2;
             Send_StartSignal(EUSART_Write, EUSART_TxInterrupt_Control, U2TXIE);
         }
     }
