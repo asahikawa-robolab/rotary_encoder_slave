@@ -25,6 +25,8 @@ typedef enum
     PARAM_STOP_PWM,
     PARAM_PWM_CHANGE,
     PARAM_KP,
+    PARAM_KD,
+    PARAM_KI,
     PARAM_PERMISSIBLE_ERR,
     PARAM_ENCODER_POL,
     PARAM_ENCODER_RESOLUTION
@@ -271,6 +273,9 @@ void calc_rev(int64_t curr_cnt[], double curr_rev[], size_t ch)
 -----------------------------------------------*/
 void calc_pwm(int64_t curr_cnt[], int16_t angle_diff[], double curr_rev[], double pwm[], size_t ch)
 {
+    static int64_t old_cnt_diff[2]; /* 前の回転角偏差 */
+    static double ie[2];
+    double de;
     /* エラーチェック */
     if (ch != 0 && ch != 1)
         inform_err(2);
@@ -278,8 +283,14 @@ void calc_pwm(int64_t curr_cnt[], int16_t angle_diff[], double curr_rev[], doubl
     /* 位置カウント偏差を計算 */
     int64_t cnt_diff = calc_cnt_diff(curr_cnt, angle_diff, ch);
 
+    de = (cnt_diff - old_cnt_diff[ch] )/ CALC_PERIOD;
+    
+    ie[ch] = ie[ch] + (cnt_diff + old_cnt_diff[ch]) * CALC_PERIOD / 2;
+
     /* 比例制御 */
-    pwm[ch] = g_param[PARAM_KP][ch] * 1E-3 * cnt_diff +
+    pwm[ch] = g_param[PARAM_KP][ch] * 1E-3 * cnt_diff+
+              g_param[PARAM_KD][ch] * 1E-1 * -de +
+              g_param[PARAM_KI][ch] * 1E-5 * ie[ch] +
               g_param[PARAM_MIN_PWM][ch] * GET_SIGNAL_INT(cnt_diff);
     pwm[ch] = (fabs(pwm[ch]) > g_param[PARAM_MAX_PWM][ch])
                   ? g_param[PARAM_MAX_PWM][ch] * GET_SIGNAL_FLOAT(pwm[ch])
