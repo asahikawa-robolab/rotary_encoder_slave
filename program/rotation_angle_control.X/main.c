@@ -25,6 +25,8 @@ typedef enum
     PARAM_STOP_PWM,
     PARAM_PWM_CHANGE,
     PARAM_KP,
+    PARAM_KD,
+    PARAM_KI,
     PARAM_PERMISSIBLE_ERR,
     PARAM_ENCODER_POL,
     PARAM_ENCODER_RESOLUTION
@@ -35,7 +37,7 @@ typedef enum
  * 宣言
  *
 -----------------------------------------------*/
-void zero_point_pwm(double pwm[], size_t ch);
+void zero_point_pwm(double pwm[], size_t ch, double sign);
 void calc_encoder(int64_t curr_cnt[], double curr_rev[], size_t ch);
 void calc_rev(int64_t curr_cnt[], double curr_rev[], size_t ch);
 void calc_pwm(int64_t curr_cnt[], int16_t angle_diff[], double curr_rev[], double pwm[], size_t ch);
@@ -53,6 +55,7 @@ bool g_zero_point_done[2];                         /* ゼロ点合わせの状�
 int64_t g_qei_int_cnt[2];                          /* QEI 割り込みが発生した回数 */
 int16_t g_target_angle[2];                         /* 目標回転角 */
 int16_t g_param[MAX_NUM_OF_PARAM][PARAM_UNIT_NUM]; /* パラメータ */
+int ms_count = 0;
 
 /*-----------------------------------------------
  *
@@ -110,7 +113,18 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void)
         {
             if (g_zero_point_done[i] == false)
             {
-                zero_point_pwm(pwm, i);
+                if(g_zero_point_done[i] == 0)
+                {
+                    if(ms_count % 30 <= 15)
+                    {
+                        zero_point_pwm(pwm, i, -1);
+                    }
+                    else
+                    {
+                        zero_point_pwm(pwm, i, 1);
+                    }
+                    ms_count++; 
+                }
             }
             else
             {
@@ -124,14 +138,14 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void)
         /* 送信 */
         if (g_tx_flag)
         {
-            TxData2[0] = UP(angle_diff[0]);
-            TxData2[1] = LOW(angle_diff[0]);
-            TxData2[2] = UP(angle_diff[1]);
-            TxData2[3] = LOW(angle_diff[1]);
-            TxData2[4] = (int8_t)pwm[0];
-            TxData2[5] = (int8_t)pwm[1];
-            TxData2[6] = (int8_t)ZERO_POINT1;
-            TxData2[7] = (int8_t)ZERO_POINT2;
+            TxData0[0] = UP(angle_diff[0]);
+            TxData0[1] = LOW(angle_diff[0]);
+            TxData0[2] = UP(angle_diff[1]);
+            TxData0[3] = LOW(angle_diff[1]);
+            TxData0[4] = (int8_t)pwm[0];
+            TxData0[5] = (int8_t)pwm[1];
+            TxData0[6] = (int8_t)ZERO_POINT1;
+            TxData0[7] = (int8_t)ZERO_POINT2;
             Send_StartSignal(EUSART_Write, EUSART_TxInterrupt_Control, U2TXIE);
         }
     }
@@ -169,23 +183,21 @@ void __attribute__((interrupt, no_auto_psv)) _CNInterrupt()
 {
     CNIF = 0;
 
-    if (ZERO_POINT1 && !g_zero_point_done[0])
+    if (ZERO_POINT1 & !g_zero_point_done[0])
     {
         /* モータ停止 */
         OC1RS = OC_PERIOD;
         MOTOR_F1 = 0;
         MOTOR_B1 = 0;
-        
+
         /* クリア */
         g_qei_int_cnt[0] = CLEAR;
         POS1CNT = CLEAR;
 
         /* フラグセット */
         g_zero_point_done[0] = true;
-        
-
     }
-    if (ZERO_POINT2 && !g_zero_point_done[1])
+    if (ZERO_POINT2 & !g_zero_point_done[1])
     {
         /* モータ停止 */
         OC2RS = OC_PERIOD;
@@ -195,14 +207,10 @@ void __attribute__((interrupt, no_auto_psv)) _CNInterrupt()
         /* クリア */
         g_qei_int_cnt[1] = CLEAR;
         POS2CNT = CLEAR;
+
         /* フラグセット */
         g_zero_point_done[1] = true;
-        
-
     }
-    /*送信*/
-
-    
 }
 
 /*-----------------------------------------------
@@ -210,13 +218,13 @@ void __attribute__((interrupt, no_auto_psv)) _CNInterrupt()
  * 原点合わせ時の PWM
  *
 -----------------------------------------------*/
-void zero_point_pwm(double pwm[], size_t ch)
+void zero_point_pwm(double pwm[], size_t ch, double sign)
 {
     /* エラーチェック */
     if (ch != 0 && ch != 1)
         inform_err(2);
 
-    pwm[ch] = g_param[PARAM_ZERO_POINT_PWM][ch];
+    pwm[ch] = g_param[PARAM_ZERO_POINT_PWM][ch] * sign;
 
     /* PARAM_ENABLE が無効だったらモータを駆動しない */
     if (g_param[PARAM_ENABLE][ch] == false)
@@ -277,6 +285,9 @@ void calc_rev(int64_t curr_cnt[], double curr_rev[], size_t ch)
 -----------------------------------------------*/
 void calc_pwm(int64_t curr_cnt[], int16_t angle_diff[], double curr_rev[], double pwm[], size_t ch)
 {
+    static int64_t old_cnt_diff[2]; /* 前の回転角偏差 */
+    static double ie[2];
+    double de;
     /* エラーチェック */
     if (ch != 0 && ch != 1)
         inform_err(2);
@@ -284,8 +295,14 @@ void calc_pwm(int64_t curr_cnt[], int16_t angle_diff[], double curr_rev[], doubl
     /* 位置カウント偏差を計算 */
     int64_t cnt_diff = calc_cnt_diff(curr_cnt, angle_diff, ch);
 
+    de = (cnt_diff - old_cnt_diff[ch] )/ CALC_PERIOD;
+    
+    ie[ch] = ie[ch] + (cnt_diff + old_cnt_diff[ch]) * CALC_PERIOD / 2;
+
     /* 比例制御 */
-    pwm[ch] = g_param[PARAM_KP][ch] * 1E-3 * cnt_diff +
+    pwm[ch] = g_param[PARAM_KP][ch] * 1E-3 * cnt_diff+
+              g_param[PARAM_KD][ch] * 1E-1 * -de +
+              g_param[PARAM_KI][ch] * 1E-5 * ie[ch] +
               g_param[PARAM_MIN_PWM][ch] * GET_SIGNAL_INT(cnt_diff);
     pwm[ch] = (fabs(pwm[ch]) > g_param[PARAM_MAX_PWM][ch])
                   ? g_param[PARAM_MAX_PWM][ch] * GET_SIGNAL_FLOAT(pwm[ch])
