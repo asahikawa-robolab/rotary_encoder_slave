@@ -29,7 +29,8 @@ typedef enum
     PARAM_KI,
     PARAM_PERMISSIBLE_ERR,
     PARAM_ENCODER_POL,
-    PARAM_ENCODER_RESOLUTION
+    PARAM_ENCODER_RESOLUTION,
+    PARAM_ERROR_STOP
 } ParamList;
 
 /*-----------------------------------------------
@@ -113,9 +114,9 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void)
         {
             if (g_zero_point_done[i] == false)
             {
-                if(g_zero_point_done[i] == 0)
+                if (g_zero_point_done[i] == 0)
                 {
-                    if(ms_count % 30 <= 15)
+                    if (ms_count % 30 <= 15)
                     {
                         zero_point_pwm(pwm, i, -1);
                     }
@@ -123,14 +124,15 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void)
                     {
                         zero_point_pwm(pwm, i, 1);
                     }
-                    ms_count++; 
+                    ms_count++;
                 }
             }
             else
             {
                 calc_encoder(curr_cnt, curr_rev, i);              /* エンコーダに関する計算 */
                 calc_pwm(curr_cnt, angle_diff, curr_rev, pwm, i); /* pwm を計算 */
-                check_pol(angle_diff, pwm, i);                    /* エンコーダの極性の確認 */
+                if (g_param[PARAM_ERROR_STOP][i])
+                    check_pol(angle_diff, pwm, i); /* エンコーダの極性の確認 */
             }
         }
         operate_motor(pwm); /* モータを操作 */
@@ -295,12 +297,12 @@ void calc_pwm(int64_t curr_cnt[], int16_t angle_diff[], double curr_rev[], doubl
     /* 位置カウント偏差を計算 */
     int64_t cnt_diff = calc_cnt_diff(curr_cnt, angle_diff, ch);
 
-    de = (cnt_diff - old_cnt_diff[ch] )/ CALC_PERIOD;
-    
+    de = (cnt_diff - old_cnt_diff[ch]) / CALC_PERIOD;
+
     ie[ch] = ie[ch] + (cnt_diff + old_cnt_diff[ch]) * CALC_PERIOD / 2;
 
     /* 比例制御 */
-    pwm[ch] = g_param[PARAM_KP][ch] * 1E-3 * cnt_diff+
+    pwm[ch] = g_param[PARAM_KP][ch] * 1E-3 * cnt_diff +
               g_param[PARAM_KD][ch] * 1E-1 * -de +
               g_param[PARAM_KI][ch] * 1E-5 * ie[ch] +
               g_param[PARAM_MIN_PWM][ch] * GET_SIGNAL_INT(cnt_diff);
