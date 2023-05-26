@@ -139,8 +139,8 @@ void apply_pwm(double pwm[])
     }
 
     /* 反転して PWM を反映（MD が Active Low だから） */
-    OC1RS = (uint16_t)(OC_PERIOD * (double)(100 - fabs(pwm[0])) * 1E-2);
-    OC2RS = (uint16_t)(OC_PERIOD * (double)(100 - fabs(pwm[1])) * 1E-2);
+    OC1RS = (uint16_t)(OC_PERIOD * (double)(pwm[0] + 100) / 2.0 * 1E-2);
+    OC2RS = (uint16_t)(OC_PERIOD * (double)(pwm[1] + 100) / 2.0 * 1E-2);
 }
 
 /* IO を反映する */

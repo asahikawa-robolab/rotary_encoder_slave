@@ -113,6 +113,8 @@ void calc_pwm(double pwm[])
         if (fabs(pwm_change) > g_param[PARAN_MAX_PWM_CHANGE][i] / 20)
             pwm[i] = pre_pwm[i] + g_param[PARAN_MAX_PWM_CHANGE][i] / 20 * GET_SIGNAL_FLOAT(pwm_change);
 
+        if (!g_param[PARAM_ENABLE][i])
+            pwm[i] = 0;
         /* 更新 */
         pre_pwm[i] = pwm[i];
     }
