@@ -116,7 +116,7 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void)
             {
                 if (g_zero_point_done[i] == 0)
                 {
-                    if (ms_count % 30 <= 15)
+                    if (ms_count % 18 <= 9)
                     {
                         zero_point_pwm(pwm, i, -1);
                     }
