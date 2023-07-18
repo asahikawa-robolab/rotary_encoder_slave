@@ -287,6 +287,7 @@ void calc_pwm(int64_t curr_cnt[], int16_t angle_diff[], double curr_rev[], doubl
     
     ie[ch] = ie[ch] + (cnt_diff + old_cnt_diff[ch]) * CALC_PERIOD / 2;
 
+    //-3,-1,-5は適当ないい感じです！！！！！！！！テキトーでごめんなさい！！！
     /* 比例制御 */
     pwm[ch] = g_param[PARAM_KP][ch] * 1E-3 * cnt_diff+
               g_param[PARAM_KD][ch] * 1E-1 * -de +
