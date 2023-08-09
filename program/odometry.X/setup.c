@@ -95,11 +95,11 @@ void setup_peripheral_module(void)
     POS2CNT = 0;                 /* 位置カウントリセット */
 
     /* Timer1 */
-    // T1IE = enable; /* タイマ割り込み許可 */
-    // T1CKPS = 0b00; /* プリスケール値１：１ */
-    // TMR1 = 0;
-    // PR1 = TIMER_1MS;
-    // T1ON = ON; /* Timer ON ビット */
+    T1IE = enable; /* タイマ割り込み許可 */
+    T1CKPS = 0b00; /* プリスケール値１：１ */
+    TMR1 = 0;
+    PR1 = TIMER_1MS;
+    T1ON = ON; /* Timer ON ビット */
 
     /* OC 用（先に Timer の設定をしなければならない） */
     /* Timer2 */

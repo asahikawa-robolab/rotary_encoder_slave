@@ -26,7 +26,8 @@ typedef enum
  * 宣言
  *
 -----------------------------------------------*/
-void calc_odometry(int32_t odometry[], int16_t param[][PARAM_UNIT_NUM]);
+void calc_rev(int64_t curr_cnt[], double curr_rev[], int16_t param[][PARAM_UNIT_NUM]);
+void calc_odometry(int32_t odometry[], double curr_rev[], int16_t param[][PARAM_UNIT_NUM]);
 
 /*-----------------------------------------------
  *
@@ -34,6 +35,7 @@ void calc_odometry(int32_t odometry[], int16_t param[][PARAM_UNIT_NUM]);
  *
 -----------------------------------------------*/
 int64_t g_qei_int_cnt[2]; /* QEI割り込みが発生した回数 */
+size_t g_tmr_int_cnt;
 
 /*-----------------------------------------------
  *
@@ -54,7 +56,9 @@ int main(int argc, char **argv)
 
     /* リセットフラグ */
     bool reset_flag[2] = {false, false};
+
     int32_t odometry[2] = {0, 0};
+    double curr_rev[2]; /* 現在の回転数 */
 
     while (1)
     {
@@ -76,7 +80,7 @@ int main(int argc, char **argv)
         }
 
         /* オドメトリ計算 */
-        calc_odometry(odometry, param);
+        calc_odometry(odometry, curr_rev, param);
 
         /* 送信 */
         if (g_tx_flag)
@@ -96,6 +100,11 @@ int main(int argc, char **argv)
             TxData0[6] = (int8_t)(odometry[1] & 0xFF);
             odometry[1] >>= 8;
             TxData0[7] = (int8_t)(odometry[1] & 0xFF);
+
+            TxData0[8] = UP(curr_rev[0]);
+            TxData0[9] = LOW(curr_rev[0]);
+            TxData0[10] = UP(curr_rev[1]);
+            TxData0[11] = LOW(curr_rev[1]);
             Send_StartSignal(EUSART_Write, EUSART_TxInterrupt_Control, U1TXIE);
         }
 
@@ -130,10 +139,21 @@ void __attribute__((interrupt, no_auto_psv)) _QEI2Interrupt()
 
 /*-----------------------------------------------
  *
+ * タイマ割り込み
+ *
+-----------------------------------------------*/
+void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void)
+{
+    T1IF = CLEAR;
+    PR1 = TIMER_1MS;
+    ++g_tmr_int_cnt;
+}
+/*-----------------------------------------------
+ *
  * オドメトリの計算
  *
 -----------------------------------------------*/
-void calc_odometry(int32_t odometry[], int16_t param[][PARAM_UNIT_NUM])
+void calc_odometry(int32_t odometry[], double curr_rev[], int16_t param[][PARAM_UNIT_NUM])
 {
     /* 位置カウントを計算 */
     int64_t cnt[2];
@@ -149,4 +169,32 @@ void calc_odometry(int32_t odometry[], int16_t param[][PARAM_UNIT_NUM])
         if (param[PARAM_ENCODER_POL][i] == true)
             odometry[i] *= -1;
     }
+    calc_rev(cnt, curr_rev, param);
+}
+/*-----------------------------------------------
+ *
+ * 回転数を計算
+ *
+-----------------------------------------------*/
+void calc_rev(int64_t curr_cnt[], double curr_rev[], int16_t param[][PARAM_UNIT_NUM])
+{
+    if (g_tmr_int_cnt == 0)
+        return;
+    static int64_t pre_cnt[2]; /* 前回の位置カウント */
+
+    /* 回転数を求めるときに使う係数を計算 */
+    const double coef[2] = {
+        1 / (param[PARAM_ENCODER_RESOLUTION][0] * 4.0) / (g_tmr_int_cnt * 1E-3) * 60.0,
+        1 / (param[PARAM_ENCODER_RESOLUTION][1] * 4.0) / (g_tmr_int_cnt * 1E-3) * 60.0,
+    };
+
+    /* 回転数を計算 */
+    for (size_t i = 0; i < 2; ++i)
+        curr_rev[i] = (curr_cnt[i] - pre_cnt[i]) * coef[i];
+
+    /* 前回の位置カウントを更新 */
+    for (size_t i = 0; i < 2; ++i)
+        pre_cnt[i] = curr_cnt[i];
+
+    g_tmr_int_cnt = CLEAR;
 }
