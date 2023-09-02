@@ -30,7 +30,8 @@ typedef enum
     PARAM_PERMISSIBLE_ERR,
     PARAM_ENCODER_POL,
     PARAM_ENCODER_RESOLUTION,
-    PARAM_ERROR_STOP
+    PARAM_ERROR_STOP,
+    PARAM_SKIP_ZERO_POINT
 } ParamList;
 
 /*-----------------------------------------------
@@ -56,8 +57,7 @@ bool g_zero_point_done[2];                         /* ゼロ点合わせの状�
 int64_t g_qei_int_cnt[2];                          /* QEI 割り込みが発生した回数 */
 int16_t g_target_angle[2];                         /* 目標回転角 */
 int16_t g_param[MAX_NUM_OF_PARAM][PARAM_UNIT_NUM]; /* パラメータ */
-int ms_count = 0;
-
+int g_reversal_cnt = 0, g_direction_1 = 0, g_direction_2 = 0, clockwise = 1;
 /*-----------------------------------------------
  *
  * main
@@ -95,7 +95,6 @@ int main(int argc, char **argv)
 void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void)
 {
     static size_t TmrIntCnt; /* タイマー割り込みの発生した回数 */
-
     T1IF = CLEAR;
     PR1 = TIMER_1MS;
     ++TmrIntCnt;
@@ -114,17 +113,36 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void)
         {
             if (g_zero_point_done[i] == false)
             {
-                if (g_zero_point_done[i] == 0)
-                {
-                    if (ms_count % 18 <= 9)
+                if(!g_param[PARAM_SKIP_ZERO_POINT][i]){
+                    calc_encoder(curr_cnt, curr_rev, i);
+                    if(curr_cnt[i] > 20 + g_reversal_cnt / 4)
+                    {
+                        clockwise = 1;
+                    }
+                    if(curr_cnt[i] < -20 + g_reversal_cnt / 4)
+                    {
+                        clockwise = 0;
+                    }
+                    if (clockwise)
                     {
                         zero_point_pwm(pwm, i, -1);
+                        g_direction_1 = 0;
+                        if(g_direction_2 == 1)
+                        {
+                            g_reversal_cnt++;
+                        }
+                        g_direction_2 = 0;
                     }
                     else
                     {
                         zero_point_pwm(pwm, i, 1);
+                        g_direction_1 = 1;
+                        if(g_direction_2 == 0)
+                        {
+                            g_reversal_cnt++;
+                        }
+                        g_direction_2 = 1;
                     }
-                    ms_count++;
                 }
             }
             else
@@ -303,7 +321,7 @@ void calc_pwm(int64_t curr_cnt[], int16_t angle_diff[], double curr_rev[], doubl
 
     /* 比例制御 */
     pwm[ch] = g_param[PARAM_KP][ch] * 1E-3 * cnt_diff +
-              g_param[PARAM_KD][ch] * 1E-1 * -de +
+              g_param[PARAM_KD][ch] * 1E-1 * de +
               g_param[PARAM_KI][ch] * 1E-5 * ie[ch] +
               g_param[PARAM_MIN_PWM][ch] * GET_SIGNAL_INT(cnt_diff);
     pwm[ch] = (fabs(pwm[ch]) > g_param[PARAM_MAX_PWM][ch])
@@ -330,6 +348,8 @@ void calc_pwm(int64_t curr_cnt[], int16_t angle_diff[], double curr_rev[], doubl
     /* kp が 0 のときは停止 */
     if (g_param[PARAM_ENABLE][ch] == false)
         pwm[ch] = 0;
+
+    old_cnt_diff[ch] = cnt_diff;
 }
 
 /*-----------------------------------------------
